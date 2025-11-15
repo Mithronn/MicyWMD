@@ -3,10 +3,10 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - master
+      - main
   pull_request:
     branches:
-      - master
+      - main
 jobs:
   build-and-sign:
     runs-on: windows-latest
@@ -194,7 +194,7 @@ jobs:
           api-token: "${{ secrets.SIGNPATH_API_TOKEN }}"
           organization-id: "${{ vars.SIGNPATH_ORG_ID }}"
           project-slug: "${{ vars.SIGNPATH_PROJECT_SLUG }}" # Changed back to the variable
-          signing-policy-slug: "release-signing" # Changed from 'VAD' to 'release-signing'
+          signing-policy-slug: "${{ vars.SIGNPATH_POLICY_SLUG }}" # Changed from 'VAD' to 'release-signing'
           github-artifact-id: "${{ steps.upload_artifact.outputs.artifact-id }}"
           wait-for-completion: true
           output-artifact-directory: "${{ vars.SIGNPATH_OUTPUT_DIR }}"
@@ -214,43 +214,6 @@ jobs:
             ${{ vars.SIGNPATH_OUTPUT_DIR }}\MicyAudio.sys
             ${{ vars.SIGNPATH_OUTPUT_DIR }}\MicyAudio.inf
             ${{ vars.SIGNPATH_OUTPUT_DIR }}\micyaudio.cat
-
-      - name: Prepare Setup Repository
-        run: |
-          git clone https://${{ secrets.READ_REPO }}@github.com/VirtualAudio/Virtual-Driver-Installer.git inno-setup
-
-      - name: Prepare Setup
-        run: |
-          copy "${{ vars.SIGNPATH_OUTPUT_DIR }}\*" inno-setup\input\
-          $platform = "${{ matrix.platform }}"
-          (Get-Content "inno-setup\Setup.iss") | 
-            ForEach-Object { $_ -replace '1.0.0', '${{ env.RELEASE_TAG }}' } | 
-            Set-Content "inno-setup\Setup.iss"
-            
-          if ($platform -eq 'ARM64') {
-            (Get-Content "inno-setup\Setup.iss") | 
-              ForEach-Object { $_ -replace 'x64compatible', 'arm64' } | 
-              Set-Content "inno-setup\Setup.iss"
-                
-            (Get-Content "inno-setup\Setup.iss") | 
-              ForEach-Object { $_ -replace '-x64', '-arm64' } | 
-              Set-Content "inno-setup\Setup.iss"
-
-            if (Test-Path "inno-setup\input\Companion\VADSysTray.exe") {Remove-Item "inno-setup\input\Companion\VADSysTray.exe"}
-            copy "inno-setup\input\Companion\arm64\VADSysTray.exe" "inno-setup\input\Companion\"
-          }
-
-      - name: Compile Installer
-        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
-        with:
-          path: inno-setup\Setup.iss
-          options: /O+
-
-      - name: Upload Installer as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Installer-${{ matrix.configuration }}-${{ matrix.platform }}
-          path: inno-setup\output\*.exe
 
   celebrate:
     needs: build-and-sign
